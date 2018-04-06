@@ -7,53 +7,27 @@ class game_board():
 
     def __init__(self, gametype='newgame'):
         #make empty board
-        self.white_pieces = np.zeros((8,8))
-        self.black_pieces = np.zeros((8,8))
+        
+        self.board = np.empty((8,8),dtype='str')
+        self.board[:, :] = " "
 
         #add pawns and kings
         if gametype=='newgame':
-            self.white_pieces[:, 1] = 1
-            self.white_pieces[0, 0] = 4
-            self.white_pieces[7, 0] = 4
-            self.white_pieces[1, 0] = 3
-            self.white_pieces[6, 0] = 3
-            self.white_pieces[2, 0] = 2
-            self.white_pieces[5, 0] = 2
-            self.white_pieces[3, 0] = 5
-            self.white_pieces[4, 0] = 6
-                 
-            self.black_pieces[:, 6] = 1
-            self.black_pieces[0, 7] = 4
-            self.black_pieces[7, 7] = 4
-            self.black_pieces[1, 7] = 3
-            self.black_pieces[6, 7] = 3
-            self.black_pieces[2, 7] = 2
-            self.black_pieces[5, 7] = 2
-            self.black_pieces[4, 7] = 6
-            self.black_pieces[3, 7] = 5
-            
-        self.combine_board()
+            self.board[:, 1] = 'P'
+            self.board[[2, 0], [5, 0]] = 'B'
+            self.board[[1, 0], [6, 0]] = 'N'
+            self.board[[0, 0], [7, 0]] = 'R'
+            self.board[3, 0] = 'Q'
+            self.board[4, 0] = 'K'
         
-    def combine_board(self):
-        self.board = np.empty((8,8),dtype='str')
-        self.board[:, :] = " "
-        self.board[self.white_pieces==1] = 'P'
-        self.board[self.white_pieces==2] = 'B'
-        self.board[self.white_pieces==3] = 'N'
-        self.board[self.white_pieces==4] = 'R'
-        self.board[self.white_pieces==5] = 'Q'
-        self.board[self.white_pieces==6] = 'K'
-        
-        self.board[self.black_pieces==1] = 'p'
-        self.board[self.black_pieces==2] = 'b'
-        self.board[self.black_pieces==3] = 'n'
-        self.board[self.black_pieces==4] = 'r'
-        self.board[self.black_pieces==5] = 'q'
-        self.board[self.black_pieces==6] = 'k'
+            self.board[:, 6] = 'p'
+            self.board[[2, 7], [5, 7]] = 'b'
+            self.board[[1, 7], [6, 7]] = 'n'
+            self.board[[0, 7], [7, 7]] = 'r'
+            self.board[3, 7] = 'q'
+            self.board[4, 7] = 'k'
         
     def print(self):
-    
-        #self.combine_board()
         
         for i in range(7, -1, -1):
             print ('| ' + ' | '.join(list(self.board[:, i])))
