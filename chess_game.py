@@ -14,15 +14,15 @@ class game_board():
         #add pawns and kings
         if gametype=='newgame':
             self.board[:, 1] = 'P'
-            self.board[[2, 0], [5, 0]] = 'B'
-            self.board[[1, 0], [6, 0]] = 'N'
-            self.board[[0, 0], [7, 0]] = 'R'
+            self.board[[2, 5], [0, 0]] = 'B'
+            self.board[[1, 6], [0, 0]] = 'N'
+            self.board[[0, 7], [0, 0]] = 'R'
             self.board[3, 0] = 'Q'
             self.board[4, 0] = 'K'
         
             self.board[:, 6] = 'p'
-            self.board[[2, 7], [5, 7]] = 'b'
-            self.board[[1, 7], [6, 7]] = 'n'
+            self.board[[2, 5], [7, 7]] = 'b'
+            self.board[[1, 6], [7, 7]] = 'n'
             self.board[[0, 7], [7, 7]] = 'r'
             self.board[3, 7] = 'q'
             self.board[4, 7] = 'k'
@@ -35,6 +35,29 @@ class game_board():
     def move_piece(self, startsquare, endsquare):
         self.board[endsquare] = self.board[startsquare]
         self.board[startsquare] = ' '
+    
+    def get_all_color_pieces(self, color):
+        assert color in ['W', 'B']
+        if color == 'W':
+            inds = np.where(np.isin(self.board, ['Q', 'K', 'N', 'R', 'B', 'P']))
+        else:
+            inds = np.where(np.isin(self.board, ['q', 'k', 'n', 'r', 'b', 'p']))
+    
+        return [(inds[0][i], inds[1][i]) for i in range(len(inds[0]))]
+    
+    
+    def check_check(self, color):
+        #color is the color of the possibly threatened king
+        kingloc = np.where(self.board == 'K' if color == 'W' else 'k')
+        kingloc = (kingloc[0][0], kingloc[1][0])
+        print(kingloc)
+        assert color in ['W', 'B']
+        pieces = self.get_all_color_pieces('W' if color == 'B' else 'B')
+        target_locs = []
+        for pieceloc in pieces:
+            target_locs+= self.find_legal_moves(pieceloc)
+        print(target_locs)
+        return kingloc in target_locs
             
     def move(self, move, color):
         assert color in ['W', 'B']
@@ -225,6 +248,24 @@ class game_board():
                  (s[0]-1, s[1]-1)]
         legal_moves = [m for m in moves if (m[0]>=0 and m[0]<8 and m[1]>=0 and m[1]<8) and (not self.find_color(m)==color)]
     
+        return legal_moves
+        
+    def find_pawnmoves(self, s, color):
+
+        adv = 1 if color == 'W' else -1
+        ocolor = 'W' if color == 'B' else 'B'
+        legal_moves = []
+        startrank = 1 if color == 'W' else 6
+        
+        if self.board[s[0], s[1] + adv] == ' ':
+            legal_moves.append((s[0], s[1] + adv))
+            if s[1] == startrank and self.board[s[0], s[1] + 2*adv] == ' ':
+                legal_moves.append((s[0], s[1]+2*adv))
+        for i in [-1, 1]: #capturing diagonally - en passant not considered yet
+            if (s[0] + i < 0) or (s[0] + i > 7):
+                continue
+            if self.find_color((s[0] + i, s[1] + adv)) == ocolor:
+                legal_moves.append((s[0]+i, s[1]+adv))
         return legal_moves
         
     def find_color(self, s):
