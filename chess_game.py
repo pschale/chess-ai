@@ -1,5 +1,17 @@
 ### Chess AI project
 ### basic game (no AI yet)
+
+### Notes:
+### main attribute of class (game_board.board) is an 8x8 numpy str array
+### squares (variable s usually used) are tuples (file_index, rank_index), 
+###     because game_board.board[s] works nicely
+### set of squares are lists
+### Algebraic notation is allowed, with function to translate (even with stuff like exd4 
+###     or Bc4xNd3, but not BxN)
+### For checking of legal moves, copies of self.board are made, then move is performed, 
+###     then check for bad things (ie your king being in check)
+
+
 import numpy as np
 
 
@@ -10,9 +22,13 @@ class game_board():
         
         self.board = np.empty((8,8),dtype='str')
         self.board[:, :] = " "
+        self.pawn_home = {'W': 1, 'B': 6}
+        self.promotion_row = {'W': 7, 'B': 0}
 
         #add pawns and kings
         if gametype=='newgame':
+            self.can_castle = {'W': True, 'B': True}
+                        
             self.board[:, 1] = 'P'
             self.board[[2, 5], [0, 0]] = 'B'
             self.board[[1, 6], [0, 0]] = 'N'
@@ -27,14 +43,14 @@ class game_board():
             self.board[3, 7] = 'q'
             self.board[4, 7] = 'k'
         
-    def print(self):
+    def copy(self):
+        gamecopy = game_board()
+        gamecopy.board = np.copy(self.board)
+        return gamecopy
         
-        for i in range(7, -1, -1):
-            print ('| ' + ' | '.join(list(self.board[:, i])))
-            
-    def move_piece(self, startsquare, endsquare):
-        self.board[endsquare] = self.board[startsquare]
-        self.board[startsquare] = ' '
+    def __str__(self):
+        # sorry that this looks awful
+        return "\n".join(['| ' + ' | '.join(list(self.board[:, i])) for i in range(7, -1, -1)])
     
     def get_all_color_pieces(self, color):
         assert color in ['W', 'B']
@@ -44,32 +60,32 @@ class game_board():
             inds = np.where(np.isin(self.board, ['q', 'k', 'n', 'r', 'b', 'p']))
     
         return [(inds[0][i], inds[1][i]) for i in range(len(inds[0]))]
-    
+        
+    def get_kingloc(self, color):
+        kingloc = np.where(self.board == 'K' if color == 'W' else 'k')
+        return (kingloc[0][0], kingloc[1][0])
     
     def check_check(self, color):
         #color is the color of the possibly threatened king
-        kingloc = np.where(self.board == 'K' if color == 'W' else 'k')
-        kingloc = (kingloc[0][0], kingloc[1][0])
-        print(kingloc)
+        kingloc = self.get_kingloc(color)
         assert color in ['W', 'B']
         pieces = self.get_all_color_pieces('W' if color == 'B' else 'B')
         target_locs = []
         for pieceloc in pieces:
             target_locs+= self.find_legal_moves(pieceloc)
-        print(target_locs)
         return kingloc in target_locs
             
-    def move(self, move, color):
+    def move(self, move, color): # this takes algebraic moves
         assert color in ['W', 'B']
         if move=='O-O':
             homerank = 0 if color=='W' else 7
             # add assertions to make sure this is legal move
-            self.move_piece((4, homerank), (6, homerank))
-            self.move_piece((7, homerank), (5, homerank))
+            self.board = move_piece(self.board, (4, homerank), (6, homerank))
+            self.board = move_piece(self.board, (7, homerank), (5, homerank))
         elif move == 'O-O-O':
             # add assertions to make sure this is legal move
-            self.move_piece((4, homerank), (2, homerank))
-            self.move_piece((0, homerank), (3, homerank))
+            self.board = move_piece(self.board, (4, homerank), (2, homerank))
+            self.board = move_piece(self.board, (0, homerank), (3, homerank))
         else:
             # first, we need to figure out which square we're moving to
             endsquare = square_index(move[-2:]) #note this is not true for queen promotions
@@ -141,6 +157,17 @@ class game_board():
 
                 print(square_name(startsquare), square_name(endsquare))
                 self.move_piece(startsquare, endsquare)
+                
+    def castle(self, color, side): #side is '0-0' or '0-0-0'
+        hr = 0 if color == 'W' else 'B'
+        assert side in ['0-0', '0-0-0']
+        if side == '0-0':
+            self.move_piece((4, hr), (6, hr))
+            self.move_piece((7, hr), (5, hr))
+        else:
+            self.move_piece((4, hr), (2, hr))
+            self.move_piece((0, hr), (3, hr))
+        self.can_castle[color] = False
 
     def find_color(self, s):
         assert not self.board[s] == ' '
@@ -163,6 +190,80 @@ class game_board():
             return self.find_knightmoves(s, color)
         elif p == 'p':
             return self.find_pawnmoves(s, color)
+            
+    def legal_move(self, startsquare, endsquare, color):
+            newboard = self.copy()
+            newboard.move_piece(startsquare, endsquare)
+            return not newboard.check_check(color)
+            
+    def find_legal_moves_check_check(self, s, color):
+        all_moves = self.find_legal_moves(s)
+        legal_moves = [[s, move] for move in all_moves if self.legal_move(s, move, color)]
+        return legal_moves
+        
+    def find_all_legal_moves(self, color):
+        # this does not yet include en passant
+        pieces = self.get_all_color_pieces(color) #list of piece locations (tuples)
+        
+        all_legal_moves = []
+        
+        for p in pieces:
+            all_legal_moves += self.find_legal_moves_check_check(p, color)
+            
+        #look for castling
+        if self.can_castle[color]:
+            castle_moves = self.check_castling(color)
+
+            all_legal_moves+=castle_moves
+        return all_legal_moves
+            
+    def find_all_next_board_positions(self, color):
+        #first we get the legal moves. For most moves, next board position will be obvious
+        legal_moves = self.find_all_legal_moves(color)
+        possible_boards = []
+        for move in legal_moves: #a move is a list of 2 board positions (tuples)
+            # castling
+            next_position = self.copy()
+            if move in ['0-0', '0-0-0']:
+                next_position.castle(color, move)
+            elif self.board[move[0]].lower() == 'p' and move[1][1] == self.promotion_row[color]:
+                next_position.move_piece(move[0], move[1])#pawn promotion
+                next_position.board[move[1]] = 'Q' if color == 'W' else 'q' # can only go to queen for now
+            else:
+                next_position.move_piece(move[0], move[1])
+                
+            possible_boards.append(next_position)
+        return possible_boards
+            
+    def check_castling(self, color):
+        hr = 0 if color == 'W' else 7
+        
+        castling_moves = []
+        
+        k_castle_squares = [(4+i, hr) for i in range(4)]
+        q_castle_squares = [(i, hr) for i in range(5)]
+        #this conditional check if pieces between K and h-rook are open
+        # then checks if any of those squares are threatened by other color
+        if (np.all(self.board[[5, 6], [hr, hr]] == ' ') and
+            np.all([not self.is_threatened(x, color) for x in 
+                k_castle_squares])):
+            # that means we can kingside castle
+            castling_moves.append('0-0')
+        
+        if (np.all(self.board[[1, 2, 3], [hr, hr, hr]] == ' ') and
+            np.all([not self.is_threatened(x, color) for x in 
+                q_castle_squares])):            
+            castling_moves.append('0-0-0')
+        return castling_moves
+        
+    def is_threatened(self, s, color):
+        #find if a square is threatened by other color (used to see if castling is possible)
+        assert color in ['W', 'B']
+        pieces = self.get_all_color_pieces('W' if color == 'B' else 'B')
+        target_locs = []
+        for pieceloc in pieces:
+            target_locs+= self.find_legal_moves(pieceloc)
+        return s in target_locs
             
     def find_diagonals(self, s, color):
 
@@ -193,7 +294,7 @@ class game_board():
 
     def find_rookmoves(self, s, color):
 
-        # go along each path
+        # go along each path all the way to the edge of the board
         u = [(s[0], s[1] + i) for i in range(1, 7-s[1] + 1)]
         d = [(s[0], s[1] - i) for i in range(1, s[1] + 1)]
         l = [(s[0] - i, s[1]) for i in range(1, s[0] + 1)]
@@ -201,6 +302,8 @@ class game_board():
 
         moves = [u, d, l, r]
         stop_index = [-1,-1,-1,-1]
+        # loop over each diagonal, go until a piece is blocking
+        # if the piece is the other color, it can be captured
         for i in range(len(moves)):
             for j in range(len(moves[i])):
                 if self.board[moves[i][j]] == ' ':
@@ -275,6 +378,13 @@ class game_board():
             return 'B'
         else:  
             return None
+            
+    def move_piece(self, startsquare, endsquare):
+        if self.board[startsquare].lower() == 'k':
+            self.can_castle[self.find_color(startsquare)] = False
+        self.board[endsquare] = self.board[startsquare]
+        self.board[startsquare] = ' '
+        
         
 def square_index(squarename):
     assert len(squarename) is 2
