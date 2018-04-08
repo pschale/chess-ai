@@ -24,11 +24,14 @@ class game_board():
         self.board[:, :] = " "
         self.pawn_home = {'W': 1, 'B': 6}
         self.promotion_row = {'W': 7, 'B': 0}
+        self.adv = {'W': 1, 'B': -1}
+        self.home = {'W': 0, 'B': 7}
 
         #add pawns and kings
         if gametype=='newgame':
             self.can_castle = {'W': True, 'B': True}
-                        
+            self.white_tomove = True
+                                    
             self.board[:, 1] = 'P'
             self.board[[2, 5], [0, 0]] = 'B'
             self.board[[1, 6], [0, 0]] = 'N'
@@ -62,7 +65,8 @@ class game_board():
         return [(inds[0][i], inds[1][i]) for i in range(len(inds[0]))]
         
     def get_kingloc(self, color):
-        kingloc = np.where(self.board == 'K' if color == 'W' else 'k')
+        p = 'K' if color == 'W' else 'k'
+        kingloc = np.where(self.board == p)
         return (kingloc[0][0], kingloc[1][0])
     
     def check_check(self, color):
@@ -75,39 +79,34 @@ class game_board():
             target_locs+= self.find_legal_moves(pieceloc)
         return kingloc in target_locs
             
-    def move(self, move, color): # this takes algebraic moves
-        assert color in ['W', 'B']
-        if move=='O-O':
-            homerank = 0 if color=='W' else 7
+    def move(self, move, verb=False): # this takes algebraic moves
+        color = 'W' if self.white_tomove else 'B'
+        
+        if move=='0-0' or move == 'O-O':
             # add assertions to make sure this is legal move
-            self.board = move_piece(self.board, (4, homerank), (6, homerank))
-            self.board = move_piece(self.board, (7, homerank), (5, homerank))
-        elif move == 'O-O-O':
+            self.move_piece((4, self.home[color]), (6, self.home[color]))
+            self.move_piece((7, self.home[color]), (5, self.home[color]))
+        elif move == '0-0-0':
             # add assertions to make sure this is legal move
-            self.board = move_piece(self.board, (4, homerank), (2, homerank))
-            self.board = move_piece(self.board, (0, homerank), (3, homerank))
+            self.move_piece((4, self.home[color]), (2, self.home[color]))
+            self.move_piece((0, self.home[color]), (3, self.home[color]))
         else:
             # first, we need to figure out which square we're moving to
             endsquare = square_index(move[-2:]) #note this is not true for queen promotions
             if color == 'W':
-                pawn_home = 1
-                adv = 1
                 myp = 'P'
             else:
-                pawn_home = 6
-                adv = -1
                 myp = 'p'
             if len(move) == 2: #this is a simple pawn move
-
                 # check if it's a pawn moving two spaces
-                if (endsquare[1] == pawn_home + 2*adv) and self.board[endsquare[0], pawn_home+adv] == ' ':
-                    assert self.board[endsquare[0], pawn_home] == myp
-                    self.move_piece((endsquare[0], pawn_home), endsquare)
+                if (endsquare[1] == self.pawn_home[color] + 2*self.adv[color]) and self.board[endsquare[0], self.pawn_home[color]+self.adv[color]] == ' ':
+                    assert self.board[endsquare[0], self.pawn_home[color]] == myp
+                    self.move_piece((endsquare[0], self.pawn_home[color]), endsquare)
                 else:
-                    assert self.board[endsquare[0], endsquare[1] - adv] == myp
+                    assert self.board[endsquare[0], endsquare[1] - self.adv[color]] == myp
                     assert self.board[endsquare] == ' '
-                    self.move_piece((endsquare[0], endsquare[1] - adv), endsquare)
-            elif '=' in move:
+                    self.move_piece((endsquare[0], endsquare[1] - self.adv[color]), endsquare)
+            elif '=' in move: #pawn promotion
                 endsquare = square_index(move[-3:-1])
                 startsquare = (endsquare[0], endsquare[1] - adv)
                 assert self.board[startsquare] == myp
@@ -116,8 +115,8 @@ class game_board():
                 if color == 'B':
                     self.board[endsquare] = self.board(endsquare).lower()
                 #pawn promoting
-            elif move[0] in ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']:
-                startsquare = (['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].index(move[0]), endsquare[1] - adv)
+            elif move[0] in ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']: #pawn capturing
+                startsquare = (['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].index(move[0]), endsquare[1] - self.adv[color])
                 assert self.board[startsquare] == myp
                 self.move_piece(startsquare, endsquare)
             
@@ -153,10 +152,35 @@ class game_board():
                             print(character in legal_pieces_locnames[i])
                             scores[i] += 1 if character in legal_pieces_locnames[i] else 0
                     startsquare = legal_pieces[scores.index(max(scores))]
-
-
-                print(square_name(startsquare), square_name(endsquare))
+ 
                 self.move_piece(startsquare, endsquare)
+        self.white_tomove = not self.white_tomove
+        if verb:
+            print(self)
+        
+        game_status = self.game_over()
+        if game_status[0]:
+            print('Game over: white scores ' + str(game_status[1]))
+            
+    def play_game(self, list_of_moves):
+        for m in list_of_moves:
+            m.replace('+', '')
+            m.replace('#', '')
+            self.move(m)
+        print(self)
+    
+    
+    def game_over(self):
+        color_tomove = 'W' if self.white_tomove else 'B'
+        if len(self.find_all_legal_moves(color_tomove)) == 0:
+            if self.check_check(color_tomove):
+                #checkmate
+                return True, 0 if self.white_tomove else 1
+            else:
+                return True, 0.5
+        else:
+            # conditions for draw should go here
+            return False, None
                 
     def castle(self, color, side): #side is '0-0' or '0-0-0'
         hr = 0 if color == 'W' else 'B'
