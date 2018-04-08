@@ -6,7 +6,10 @@ import numpy as np
 a = cg.game_board()
 checkmate_2move = ['f3', 'e5', 'g4', 'Qh4']
 a.play_game(checkmate_2move)
+csvstr = a.to_csv_format()
 
+a = cg.game_board(gametype = 'saved', csvstr = csvstr)
+print(a)
 
 
 

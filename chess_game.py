@@ -17,7 +17,7 @@ import numpy as np
 
 class game_board():
 
-    def __init__(self, gametype='newgame'):
+    def __init__(self, gametype='newgame', csvstr = None):
         #make empty board
         
         self.board = np.empty((8,8),dtype='str')
@@ -45,6 +45,11 @@ class game_board():
             self.board[[0, 7], [7, 7]] = 'r'
             self.board[3, 7] = 'q'
             self.board[4, 7] = 'k'
+
+        else:
+            self.board = csvstr[:64].reshape(8,8)
+            self.can_castle = {'W': csvstr[65], 'B': csvstr[66]}
+            self.white_tomove = csvstr[64]
         
     def copy(self):
         gamecopy = game_board()
@@ -406,7 +411,10 @@ class game_board():
             self.can_castle[self.find_color(startsquare)] = False
         self.board[endsquare] = self.board[startsquare]
         self.board[startsquare] = ' '
-        
+
+    def to_csv_format(self):
+        # need 64 data points for the board, 1 for whose turn it is, 2 (will be 4) for castling abilities
+        return np.append(self.board.flatten(), [self.white_tomove, self.can_castle['W'], self.can_castle['B']])
         
 def square_index(squarename):
     assert len(squarename) is 2
