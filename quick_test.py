@@ -18,5 +18,6 @@ a.play_game(checkmate_4move)
 #Test 3: first game from fics database
 f = open('games_parsed.txt')
 game = f.readline().split()[1:-1]
+print(game)
 a = cg.game_board()
 a.play_game(game)

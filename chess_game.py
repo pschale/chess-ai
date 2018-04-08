@@ -145,11 +145,9 @@ class game_board():
                 else:
                     info = move[1:-2]
                     legal_pieces_locnames = [square_name(ele) for ele in legal_pieces]
-                    print(legal_pieces_locnames)
                     scores = [0 for ele in legal_pieces_locnames]
                     for character in info:
                         for i in range(len(legal_pieces_locnames)):
-                            print(character in legal_pieces_locnames[i])
                             scores[i] += 1 if character in legal_pieces_locnames[i] else 0
                     startsquare = legal_pieces[scores.index(max(scores))]
  
@@ -164,8 +162,8 @@ class game_board():
             
     def play_game(self, list_of_moves):
         for m in list_of_moves:
-            m.replace('+', '')
-            m.replace('#', '')
+            m = m.replace('+', '')
+            m = m.replace('#', '')
             self.move(m)
         print(self)
     
