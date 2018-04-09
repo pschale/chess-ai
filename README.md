@@ -4,11 +4,8 @@ Current status:
 Can take any board position and whose move it is and give all possible positions available from it (equivalent to showing all legal moves, but it's hard to get all moves - like castling - into a uniform format, so I'm just outputing what the board position would be after the move is made). Just added move indicator.
 mostly functional, though not very easy to input moves yet. Features left to implement:
 
-Castling:
-    Disable castling ability after relevant rook has moved (king move disables castling ability)
-
 En passant:
-    not added at all
+    can do the move, but won't show up in list of possible moves
 
 pawn promotion:
     promoting to queeen only option

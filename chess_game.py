@@ -29,7 +29,8 @@ class game_board():
 
         #add pawns and kings
         if gametype=='newgame':
-            self.can_castle = {'W': True, 'B': True}
+            self.can_castle = {'W': {'kingside': True, 'queenside': True}, 
+                               'B': {'kingside': True, 'queenside': True}}
             self.white_tomove = True
                                     
             self.board[:, 1] = 'P'
@@ -48,7 +49,8 @@ class game_board():
 
         else:
             self.board = csvstr[:64].reshape(8,8)
-            self.can_castle = {'W': csvstr[65], 'B': csvstr[66]}
+            self.can_castle = {'W': {'kingside': csvstr[65], 'queenside': csvstr[66]}, 
+                               'B': {'kingside': csvstr[67], 'queenside': csvstr[68]}}
             self.white_tomove = csvstr[64]
         
     def copy(self):
@@ -88,16 +90,18 @@ class game_board():
         color = 'W' if self.white_tomove else 'B'
         
         if move=='0-0' or move == 'O-O':
-            # add assertions to make sure this is legal move
-            self.move_piece((4, self.home[color]), (6, self.home[color]))
-            self.move_piece((7, self.home[color]), (5, self.home[color]))
-        elif move == '0-0-0':
-            # add assertions to make sure this is legal move
-            self.move_piece((4, self.home[color]), (2, self.home[color]))
-            self.move_piece((0, self.home[color]), (3, self.home[color]))
+            assert self.can_castle[color]['kingside']
+            self.move_piece((4, self.home[color]), (6, self.home[color]), color)
+            self.move_piece((7, self.home[color]), (5, self.home[color]), color)
+        elif move == '0-0-0' or move == 'O-O-O':
+            assert self.can_castle[color]['queenside']
+            self.move_piece((4, self.home[color]), (2, self.home[color]), color)
+            self.move_piece((0, self.home[color]), (3, self.home[color]), color)
         else:
             # first, we need to figure out which square we're moving to
-            endsquare = square_index(move[-2:]) #note this is not true for queen promotions
+            if not '=' in move:
+                endsquare = square_index(move[-2:]) #note this is not true for queen promotions
+            
             if color == 'W':
                 myp = 'P'
             else:
@@ -106,24 +110,29 @@ class game_board():
                 # check if it's a pawn moving two spaces
                 if (endsquare[1] == self.pawn_home[color] + 2*self.adv[color]) and self.board[endsquare[0], self.pawn_home[color]+self.adv[color]] == ' ':
                     assert self.board[endsquare[0], self.pawn_home[color]] == myp
-                    self.move_piece((endsquare[0], self.pawn_home[color]), endsquare)
+                    self.move_piece((endsquare[0], self.pawn_home[color]), endsquare, color)
                 else:
                     assert self.board[endsquare[0], endsquare[1] - self.adv[color]] == myp
                     assert self.board[endsquare] == ' '
-                    self.move_piece((endsquare[0], endsquare[1] - self.adv[color]), endsquare)
+                    self.move_piece((endsquare[0], endsquare[1] - self.adv[color]), endsquare, color)
             elif '=' in move: #pawn promotion
-                endsquare = square_index(move[-3:-1])
-                startsquare = (endsquare[0], endsquare[1] - adv)
+                endsquare = square_index(move[-4:-2])
+                if 'x' in move: #pawn promotion via capture
+                    startsquare = square_index(move[0] + str(endsquare[1] - self.adv[color]+1))
+                else:
+                    startsquare = (endsquare[0], endsquare[1] - self.adv[color])
                 assert self.board[startsquare] == myp
-                self.move_piece(endsquare, startsquare)
+                self.move_piece(startsquare, endsquare, color)
                 self.board[endsquare] = move[-1]
                 if color == 'B':
-                    self.board[endsquare] = self.board(endsquare).lower()
+                    self.board[endsquare] = self.board[endsquare].lower()
                 #pawn promoting
             elif move[0] in ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']: #pawn capturing
                 startsquare = (['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].index(move[0]), endsquare[1] - self.adv[color])
                 assert self.board[startsquare] == myp
-                self.move_piece(startsquare, endsquare)
+                if self.board[endsquare] == ' ': #en passant, currently no checking to make sure it's really legal
+                    self.board[(endsquare[0], endsquare[1] - self.adv[color])] = ' '
+                self.move_piece(startsquare, endsquare, color)
             
             else:
                 # 2 special cases: capturing, and need for specification
@@ -141,11 +150,13 @@ class game_board():
                 for loc in locs:
                     legal_moves = self.find_legal_moves(loc)
                     if endsquare in legal_moves:
-                        legal_pieces.append(loc)    
+                        if self.legal_move(loc, endsquare, color):
+                            legal_pieces.append(loc)    
                 
                 if len(legal_pieces) == 1:
                     startsquare = legal_pieces[0]
                 elif not move[1:-2]:
+                    print(move)
                     raise
                 else:
                     info = move[1:-2]
@@ -156,7 +167,7 @@ class game_board():
                             scores[i] += 1 if character in legal_pieces_locnames[i] else 0
                     startsquare = legal_pieces[scores.index(max(scores))]
  
-                self.move_piece(startsquare, endsquare)
+                self.move_piece(startsquare, endsquare, color)
         self.white_tomove = not self.white_tomove
         if verb:
             print(self)
@@ -220,7 +231,7 @@ class game_board():
             
     def legal_move(self, startsquare, endsquare, color):
             newboard = self.copy()
-            newboard.move_piece(startsquare, endsquare)
+            newboard.move_piece(startsquare, endsquare, color)
             return not newboard.check_check(color)
             
     def find_legal_moves_check_check(self, s, color):
@@ -254,10 +265,10 @@ class game_board():
             if move in ['0-0', '0-0-0']:
                 next_position.castle(color, move)
             elif self.board[move[0]].lower() == 'p' and move[1][1] == self.promotion_row[color]:
-                next_position.move_piece(move[0], move[1])#pawn promotion
+                next_position.move_piece(move[0], move[1], color)#pawn promotion
                 next_position.board[move[1]] = 'Q' if color == 'W' else 'q' # can only go to queen for now
             else:
-                next_position.move_piece(move[0], move[1])
+                next_position.move_piece(move[0], move[1], color)
                 
             possible_boards.append(next_position)
         return possible_boards
@@ -406,15 +417,27 @@ class game_board():
         else:  
             return None
             
-    def move_piece(self, startsquare, endsquare):
-        if self.board[startsquare].lower() == 'k':
-            self.can_castle[self.find_color(startsquare)] = False
+    def move_piece(self, startsquare, endsquare, color):
+        if self.can_castle[color]['queenside'] or self.can_castle[color]['kingside']:
+            if self.board[startsquare].lower() == 'k':
+                self.can_castle[color]['queenside'] = False
+                self.can_castle[color]['kingside'] = False
+            elif self.board[startsquare].lower() == 'r':
+                if startsquare[0] == 0:
+                    self.can_castle[color]['queenside'] = False
+                elif startsquare[0] == 7:
+                    self.can_castle[color]['kingside'] = False
+
         self.board[endsquare] = self.board[startsquare]
         self.board[startsquare] = ' '
 
     def to_csv_format(self):
         # need 64 data points for the board, 1 for whose turn it is, 2 (will be 4) for castling abilities
-        return np.append(self.board.flatten(), [self.white_tomove, self.can_castle['W'], self.can_castle['B']])
+        return np.append(self.board.flatten(), [self.white_tomove, 
+                                                self.can_castle['W']['kingside'],
+                                                self.can_castle['W']['queenside'],
+                                                self.can_castle['B']['kingside'],
+                                                self.can_castle['B']['queenside']])
         
 def square_index(squarename):
     assert len(squarename) is 2
