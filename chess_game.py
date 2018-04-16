@@ -269,7 +269,7 @@ class game_board():
                 next_position.board[move[1]] = 'Q' if color == 'W' else 'q' # can only go to queen for now
             else:
                 next_position.move_piece(move[0], move[1], color)
-                
+            next_position.white_tomove = not next_position.white_tomove
             possible_boards.append(next_position)
         return possible_boards
             
@@ -416,7 +416,22 @@ class game_board():
             return 'B'
         else:  
             return None
-            
+    def get_material(self, color):
+        if color == 'W':
+            return (9*np.sum(self.board=='Q') + 
+                    5*np.sum(self.board=='R') + 
+                    3*np.sum(self.board=='N') + 
+                    3*np.sum(self.board=='B') + 
+                    np.sum(self.board=='P'))
+        elif color == 'B':
+            return (9*np.sum(self.board=='q') + 
+                    5*np.sum(self.board=='r') + 
+                    3*np.sum(self.board=='n') + 
+                    3*np.sum(self.board=='b') + 
+                    np.sum(self.board=='p'))
+        else:
+            raise
+                
     def move_piece(self, startsquare, endsquare, color):
         if self.can_castle[color]['queenside'] or self.can_castle[color]['kingside']:
             if self.board[startsquare].lower() == 'k':
@@ -433,11 +448,13 @@ class game_board():
 
     def to_csv_format(self):
         # need 64 data points for the board, 1 for whose turn it is, 2 (will be 4) for castling abilities
-        return np.append(self.board.flatten(), [self.white_tomove, 
-                                                self.can_castle['W']['kingside'],
-                                                self.can_castle['W']['queenside'],
-                                                self.can_castle['B']['kingside'],
-                                                self.can_castle['B']['queenside']])
+        return np.append(self.board.flatten(), [int(self.white_tomove), 
+                                                int(self.can_castle['W']['kingside']),
+                                                int(self.can_castle['W']['queenside']),
+                                                int(self.can_castle['B']['kingside']),
+                                                int(self.can_castle['B']['queenside']),
+                                                self.get_material('W'),
+                                                self.get_material('B')])
         
 def square_index(squarename):
     assert len(squarename) is 2

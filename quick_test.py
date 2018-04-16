@@ -18,12 +18,18 @@ a = cg.game_board()
 checkmate_4move = ['e4', 'e5', 'Qf3', 'Nc6', 'Bc4', 'b5', 'Qxf7']
 a.play_game(checkmate_4move)
 print('this should be 4-move checkmate')
+print('black total material: ' + str(a.get_material('B')))
+print('white total material: ' + str(a.get_material('W')))
 
 #Test 3: first game from fics database
 f = open('games_parsed.txt')
 game = f.readline().split()[1:-1]
 a = cg.game_board()
 a.play_game(game)
+print('black total material: ' + str(a.get_material('B')))
+print('white total material: ' + str(a.get_material('W')))
+
+print(a.to_csv_format())
 
 #Test 4: game with pawn promotion via capture
 a = cg.game_board()
