@@ -121,7 +121,8 @@ class game_board():
             elif move[0] in ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']: #pawn capturing
                 startsquare = (['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].index(move[0]), endsquare[1] - self.adv[color])
                 assert self.board[startsquare] == myp
-                if self.board[endsquare] == ' ': #en passant, currently no checking to make sure it's really legal
+                if self.board[endsquare] == ' ': #en passant
+                    assert (endsquare[0], endsquare[1]-self.adv[color]) == self.en_passantable_square
                     self.board[(endsquare[0], endsquare[1] - self.adv[color])] = ' '
                 self.move_piece(startsquare, endsquare, color)
             
@@ -266,7 +267,9 @@ class game_board():
     
     # finds all of the moves that the named color can make
     # returns a list of MOVES - with are 2-element lists [startsquare, endsquare]
-    def find_all_legal_moves(self, color):
+    def find_all_legal_moves(self, color='auto'):
+        if color == 'auto':
+            color = 'W' if self.white_tomove else 'B'
         # this does not yet include en passant
         pieces = self.get_all_color_pieces(color) #list of piece locations (tuples)
         
@@ -287,7 +290,8 @@ class game_board():
     
     # finds all of the board positions that are possible after color makes its next move
     # returns a LIST of game_boards
-    def find_all_next_board_positions(self, color):
+    def find_all_next_board_positions(self):
+        color = 'W' if self.white_tomove else 'B'
         #first we get the legal moves. For most moves, next board position will be obvious
         legal_moves = self.find_all_legal_moves(color)
         possible_boards = []
