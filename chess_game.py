@@ -27,6 +27,7 @@ class game_board():
         self.promotion_row = {'W': 7, 'B': 0}
         self.adv = {'W': 1, 'B': -1}
         self.home = {'W': 0, 'B': 7}
+        self.en_passantable_square = None
 
         #add pawns and kings
         if gametype=='newgame':
@@ -68,9 +69,11 @@ class game_board():
         if self.white_tomove:
             color = 'W'
             myp = 'P'
+            otherp = 'p'
         else:
             color = 'B'
             myp = 'p'
+            otherp = 'P'
 
         if move in ['0-0', 'O-O', '0-0-0', 'O-O-O']:
             self.castle(color, move)
@@ -101,9 +104,15 @@ class game_board():
 
             if len(move) == 2: #this is a simple pawn move
                 # check if it's a pawn moving two spaces
-                if (endsquare[1] == self.pawn_home[color] + 2*self.adv[color]) and self.board[endsquare[0], self.pawn_home[color]+self.adv[color]] == ' ':
+                if (endsquare[1] == self.pawn_home[color] + 2*self.adv[color] 
+                        and self.board[endsquare[0], self.pawn_home[color]+self.adv[color]] == ' '):
                     assert self.board[endsquare[0], self.pawn_home[color]] == myp
                     self.move_piece((endsquare[0], self.pawn_home[color]), endsquare, color)
+                    #add en passant eligibility if applicable
+                    if (self.board[min(endsquare[0]+1, 7), endsquare[1]] == otherp 
+                            or self.board[max(endsquare[0]-1, 0), endsquare[1]] == otherp):
+                        self.en_passantable_square = endsquare
+
                 else:
                     assert self.board[endsquare[0], endsquare[1] - self.adv[color]] == myp
                     assert self.board[endsquare] == ' '
@@ -267,10 +276,13 @@ class game_board():
             all_legal_moves += self.find_legal_moves_check_check(p, color)
             
         #look for castling
-        if self.can_castle[color]:
-            castle_moves = self.check_castling(color)
-
-            all_legal_moves+=castle_moves
+        #if self.can_castle[color]:
+        castle_moves = self.check_castling(color)
+        all_legal_moves+=castle_moves
+            
+        if self.en_passantable_square:
+            all_legal_moves += self.find_en_passantmoves(color)
+            
         return all_legal_moves
     
     # finds all of the board positions that are possible after color makes its next move
@@ -279,14 +291,31 @@ class game_board():
         #first we get the legal moves. For most moves, next board position will be obvious
         legal_moves = self.find_all_legal_moves(color)
         possible_boards = []
-        for move in legal_moves: #a move is a list of 2 board positions (tuples)
+        for move in legal_moves: # a move is a list of 2 board positions (tuples), 
+                                 # a castling move (1 string, eg O-O), 
+                                 # or an en passant move (2 board positions and the string ep)
             # castling
+
             next_position = self.copy()
             if move in ['0-0', '0-0-0']:
                 next_position.castle(color, move)
+            if len(move) == 3:
+                #en passant
+                next_position.en_passantable_square = ' '
+                next_position.move_piece(move[0], move[1], color)
             elif self.board[move[0]].lower() == 'p' and move[1][1] == self.promotion_row[color]:
-                next_position.move_piece(move[0], move[1], color)#pawn promotion
-                next_position.board[move[1]] = 'Q' if color == 'W' else 'q' # can only go to queen for now
+                # pawn promotion - just to knight or queen because we don't want the AI trolling
+                next_position.move_piece(move[0], move[1], color)
+                next_position.board[move[1]] = 'Q' if color == 'W' else 'q' 
+                next_position.white_tomove = not next_positions.white_tomove
+                possible_boards.append(next_position)
+                
+                next_position = self.copy()
+                next_position.move_piece(move[0], move[1], color)
+                next_position.board[move[1]] = 'N' if color == 'W' else 'n' 
+                next_position.white_tomove = not next_positions.white_tomove
+                possible_boards.append(next_position)
+                continue
             else:
                 next_position.move_piece(move[0], move[1], color)
             next_position.white_tomove = not next_position.white_tomove
@@ -346,6 +375,16 @@ class game_board():
                     self.can_castle[color]['queenside'] = False
                 elif startsquare[0] == 7:
                     self.can_castle[color]['kingside'] = False
+
+        self.en_passantable_square = None
+                         
+        if (self.board[startsquare].lower() == 'p'                        #if we're moving a pawn
+                and startsquare[1] == self.pawn_home[color]                # and it started on the home row
+                and startsquare[1] + 2*self.adv[color] == endsquare[1]):  # and it moved 2 spaces
+                otherp = 'P' if color=='B' else 'p'
+                if (self.board[min(endsquare[0]+1, 7), endsquare[1]] == otherp
+                     or self.board[max(endsquare[0]-1, 0), endsquare[1]] == otherp):
+                     self.en_passantable_square = endsquare
 
         self.board[endsquare] = self.board[startsquare]
         self.board[startsquare] = ' '
@@ -454,6 +493,24 @@ class game_board():
             if self.find_color((s[0] + i, s[1] + adv)) == ocolor:
                 legal_moves.append((s[0]+i, s[1]+adv))
         return legal_moves
+        
+    def find_en_passantmoves(self, color):
+        # pawn to be captured is on s = self.en_passantable_square
+        # pawns doing the capturing are on (s[0]+1, s[1]), (s[0]-1, s[1])
+        s = self.en_passantable_square
+        endsquare = (s[0], s[1] + self.adv[color])
+        assert self.board[endsquare] == ' '
+        cs1 = (min(s[0]+1, 7), s[1])
+        cs2 = (max(s[0]-1, 0), s[1])
+        open_moves = []
+
+        if self.board[cs1].lower()=='p' and self.find_color(cs1)==color:
+            open_moves.append([cs1, endsquare, 'ep'])
+        if self.board[cs2].lower()=='p' and self.find_color(cs2)==color:
+            open_moves.append([cs2, endsquare, 'ep'])
+            
+        assert(len(open_moves) > 0)
+        return open_moves
         
     def copy(self):
         gamecopy = game_board()
