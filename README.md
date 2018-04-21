@@ -7,11 +7,9 @@ File board_positions_1.csv is a csv file with board positions and castling abili
 
 Features left to implement:
 
-En passant:
-    can do the move, but won't show up in list of possible moves
+Draw conditions
 
-pawn promotion:
-    promoting to queeen only option
+full checking to ensure en passant is legal (when entered as algebraic move)
 
 Feature to add if I'm really bored:
     make the printed board look pretty; could make image with matplotlib or something. Not at all necessary for the machine learning angle
