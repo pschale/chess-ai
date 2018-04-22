@@ -548,6 +548,28 @@ class game_board():
                                                 int(self.can_castle['B']['queenside']),
                                                 self.get_material('W'),
                                                 self.get_material('B')])
+    
+    def get_NN_inputs(self):
+        board_onehot = np.zeros((8, 8, 8))
+        #lowered_board = 
+        board_onehot[:, :, 0] = np.isin(self.board, ['P', 'R', 'N', 'B', 'K', 'Q'])
+        board_onehot[:, :, 1] = np.isin(self.board, ['p', 'r', 'n', 'b', 'k', 'q'])
+        board_onehot[:, :, 2] = np.isin(self.board, ['K', 'k'])
+        board_onehot[:, :, 3] = np.isin(self.board, ['Q', 'q'])
+        board_onehot[:, :, 4] = np.isin(self.board, ['R', 'r'])
+        board_onehot[:, :, 5] = np.isin(self.board, ['B', 'b'])
+        board_onehot[:, :, 6] = np.isin(self.board, ['N', 'n'])
+        board_onehot[:, :, 7] = np.isin(self.board, ['P', 'p'])
+        
+        aux = [int(self.white_tomove), 
+                int(self.can_castle['W']['kingside']),
+                int(self.can_castle['W']['queenside']),
+                int(self.can_castle['B']['kingside']),
+                int(self.can_castle['B']['queenside']),
+                self.get_material('W'),
+                self.get_material('B')]
+                
+        return board_onehot, aux
         
 def square_index(squarename):
     assert len(squarename) is 2
