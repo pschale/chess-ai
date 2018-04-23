@@ -301,9 +301,9 @@ class game_board():
             # castling
 
             next_position = self.copy()
-            if move in ['0-0', '0-0-0']:
+            if move in ['0-0', '0-0-0', 'O-O-O', 'O-O']:
                 next_position.castle(color, move)
-            if len(move) == 3:
+            elif len(move) == 3:
                 #en passant
                 next_position.en_passantable_square = ' '
                 next_position.move_piece(move[0], move[1], color)
@@ -311,13 +311,13 @@ class game_board():
                 # pawn promotion - just to knight or queen because we don't want the AI trolling
                 next_position.move_piece(move[0], move[1], color)
                 next_position.board[move[1]] = 'Q' if color == 'W' else 'q' 
-                next_position.white_tomove = not next_positions.white_tomove
+                next_position.white_tomove = not next_position.white_tomove
                 possible_boards.append(next_position)
                 
                 next_position = self.copy()
                 next_position.move_piece(move[0], move[1], color)
                 next_position.board[move[1]] = 'N' if color == 'W' else 'n' 
-                next_position.white_tomove = not next_positions.white_tomove
+                next_position.white_tomove = not next_position.white_tomove
                 possible_boards.append(next_position)
                 continue
             else:
@@ -520,7 +520,7 @@ class game_board():
         gamecopy = game_board()
         gamecopy.board = np.copy(self.board)
         gamecopy.can_castle = deepcopy(self.can_castle)
-        gamecopy.whie_tomove = self.white_tomove
+        gamecopy.white_tomove = self.white_tomove
         return gamecopy
                
     def get_material(self, color):
@@ -550,16 +550,17 @@ class game_board():
                                                 self.get_material('B')])
     
     def get_NN_inputs(self):
-        board_onehot = np.zeros((8, 8, 8))
+        board_onehot = np.zeros((64, 8))
+        fboard = self.board.flatten()
         #lowered_board = 
-        board_onehot[:, :, 0] = np.isin(self.board, ['P', 'R', 'N', 'B', 'K', 'Q'])
-        board_onehot[:, :, 1] = np.isin(self.board, ['p', 'r', 'n', 'b', 'k', 'q'])
-        board_onehot[:, :, 2] = np.isin(self.board, ['K', 'k'])
-        board_onehot[:, :, 3] = np.isin(self.board, ['Q', 'q'])
-        board_onehot[:, :, 4] = np.isin(self.board, ['R', 'r'])
-        board_onehot[:, :, 5] = np.isin(self.board, ['B', 'b'])
-        board_onehot[:, :, 6] = np.isin(self.board, ['N', 'n'])
-        board_onehot[:, :, 7] = np.isin(self.board, ['P', 'p'])
+        board_onehot[:, 0] = np.isin(fboard, ['P', 'R', 'N', 'B', 'K', 'Q'])
+        board_onehot[:, 1] = np.isin(fboard, ['p', 'r', 'n', 'b', 'k', 'q'])
+        board_onehot[:, 2] = np.isin(fboard, ['K', 'k'])
+        board_onehot[:, 3] = np.isin(fboard, ['Q', 'q'])
+        board_onehot[:, 4] = np.isin(fboard, ['R', 'r'])
+        board_onehot[:, 5] = np.isin(fboard, ['B', 'b'])
+        board_onehot[:, 6] = np.isin(fboard, ['N', 'n'])
+        board_onehot[:, 7] = np.isin(fboard, ['P', 'p'])
         
         aux = [int(self.white_tomove), 
                 int(self.can_castle['W']['kingside']),
