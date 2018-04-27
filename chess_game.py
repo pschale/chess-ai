@@ -48,7 +48,11 @@ class game_board():
             self.board[[0, 7], [7, 7]] = 'r'
             self.board[3, 7] = 'q'
             self.board[4, 7] = 'k'
-
+        elif gametype=='blank':
+            print("Blank board created. White to move, and no castling available")
+            self.can_castle = {'W': {'kingside': False, 'queenside': False}, 
+                               'B': {'kingside': False, 'queenside': False}} 
+            self.white_tomove = True
         else:
             self.board = csvstr[:64].reshape(8,8)
             self.can_castle = {'W': {'kingside': csvstr[65], 'queenside': csvstr[66]}, 
@@ -336,13 +340,13 @@ class game_board():
         q_castle_squares = [(i, hr) for i in range(5)]
         #this conditional check if pieces between K and h-rook are open
         # then checks if any of those squares are threatened by other color
-        if (np.all(self.board[[5, 6], [hr, hr]] == ' ') and
+        if self.can_castle[color]['kingside'] and (np.all(self.board[[5, 6], [hr, hr]] == ' ') and
             np.all([not self.is_threatened(x, color) for x in 
                 k_castle_squares])):
             # that means we can kingside castle
             castling_moves.append('0-0')
         
-        if (np.all(self.board[[1, 2, 3], [hr, hr, hr]] == ' ') and
+        if self.can_castle[color]['queenside'] and (np.all(self.board[[1, 2, 3], [hr, hr, hr]] == ' ') and
             np.all([not self.is_threatened(x, color) for x in 
                 q_castle_squares])):            
             castling_moves.append('0-0-0')
