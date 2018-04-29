@@ -575,6 +575,149 @@ class game_board():
                 self.get_material('B')]
                 
         return board_onehot, aux
+    
+    def count_threats(self):
+        white_threats = np.zeros((8,8))
+        black_threats = np.zeros((8,8))
+        
+        #deal with pawns first
+        whitepawns = np.where(self.board == 'P')
+        whitepawns = [(whitepawns[0][i], whitepawns[1][i]) for i in range(len(whitepawns[0]))]
+        for p in whitepawns:
+            if p[0] > 0:
+                white_threats[p[0]-1,p[1]+1] += 1
+            if p[0] < 7:
+                white_threats[p[0]+1,p[1]+1] += 1
+        #now all the other pieces
+        other_white_pieces = np.where(np.isin(self.board, ['Q', 'K', 'N', 'R', 'B']))
+        other_white_pieces = [(other_white_pieces[0][i], other_white_pieces[1][i]) for i in range(len(other_white_pieces[0]))]
+        
+        for p in other_white_pieces:
+            moves = self.find_threats_from_piece(p, 'W')
+            for m in moves:
+                white_threats[m[1]] += 1
+            
+        #same for black
+        #deal with pawns first
+        blackpawns = np.where(self.board == 'p')
+        blackpawns = [(blackpawns[0][i], blackpawns[1][i]) for i in range(len(blackpawns[0]))]
+        for p in blackpawns:
+            if p[0] > 0:
+                black_threats[p[0]-1,p[1]-1] += 1
+            if p[0] < 7:
+                black_threats[p[0]+1,p[1]-1] += 1
+        #now all the other pieces
+        other_black_pieces = np.where(np.isin(self.board, ['q', 'k', 'n', 'r', 'b']))
+        other_black_pieces = [(other_black_pieces[0][i], other_black_pieces[1][i]) for i in range(len(other_black_pieces[0]))]
+        
+        for p in other_black_pieces:
+            moves = self.find_threats_from_piece(p, 'B')
+            for m in moves:
+                black_threats[m[1]] += 1
+                
+        return white_threats, black_threats
+        
+    def find_threats_from_piece(self, s, color):
+        if self.board[s].lower() == 'b':
+            all_moves = self.find_diagonalthreats(s)
+        elif self.board[s].lower() == 'n':
+            all_moves = self.find_knightthreats(s)
+        elif self.board[s].lower() == 'r':
+            all_moves = self.find_rookthreats(s)
+        elif self.board[s].lower() == 'k':
+            all_moves = self.find_kingthreats(s)
+        elif self.board[s].lower() == 'q':
+            all_moves = self.find_queenthreats(s)
+        else:
+            raise
+        all_moves = [ele for ele in all_moves if not ele == self.get_kingloc(color)]
+            
+        legal_moves = [[s, move] for move in all_moves if self.is_legal_move(s, move, color)]
+        
+        return legal_moves
+
+    def find_diagonalthreats(self, s):
+
+        # go along each diagonal
+        urs = [(s[0] + i, s[1] + i) for i in range(1, min(7-s[0], 7-s[1]) + 1)]
+        uls = [(s[0] - i, s[1] + i) for i in range(1, min(s[0], 7-s[1]) + 1)]
+        drs = [(s[0] + i, s[1] - i) for i in range(1, min(7-s[0], s[1]) + 1)]
+        dls = [(s[0] - i, s[1] - i) for i in range(1, min(s[0], s[1]) + 1)]
+        
+        moves = [urs, uls, drs, dls]
+        stop_index = [-1,-1,-1,-1]
+        for i in range(len(moves)):
+            for j in range(len(moves[i])):
+                if self.board[moves[i][j]] == ' ':
+                    stop_index[i] = j
+                else:
+                    stop_index[i] = j
+                    break
+
+        open_moves = [moves[i][:stop_index[i]+1] for i in range(4)]
+        open_moves = [item for sublist in open_moves for item in sublist]
+        open_moves = [ele for ele in open_moves if ele]
+                
+        return open_moves
+        
+    def find_rookthreats(self, s):
+
+        # go along each path all the way to the edge of the board
+        u = [(s[0], s[1] + i) for i in range(1, 7-s[1] + 1)]
+        d = [(s[0], s[1] - i) for i in range(1, s[1] + 1)]
+        l = [(s[0] - i, s[1]) for i in range(1, s[0] + 1)]
+        r = [(s[0] + i, s[1]) for i in range(1, 7-s[0] + 1)]
+
+        moves = [u, d, l, r]
+        stop_index = [-1,-1,-1,-1]
+        # loop over each diagonal, go until a piece is blocking
+        # if the piece is the other color, it can be captured
+        for i in range(len(moves)):
+            for j in range(len(moves[i])):
+                if self.board[moves[i][j]] == ' ':
+                    stop_index[i] = j
+                else:
+                    stop_index[i] = j
+                    break
+
+        open_moves = [moves[i][:stop_index[i]+1] for i in range(4)]
+        open_moves = [item for sublist in open_moves for item in sublist]
+        open_moves = [ele for ele in open_moves if ele]
+                        
+        return open_moves
+
+    def find_knightthreats(self, s):
+
+        moves = [(s[0] + 2, s[1] + 1),
+                 (s[0] - 2, s[1] + 1),
+                 (s[0] + 2, s[1] - 1),
+                 (s[0] - 2, s[1] - 1),
+                 (s[0] + 1, s[1] + 2),
+                 (s[0] - 1, s[1] + 2),
+                 (s[0] + 1, s[1] - 2),
+                 (s[0] - 1, s[1] - 2)]
+
+        legal_moves = [m for m in moves if (m[0]>=0 and m[0]<8 and m[1]>=0 and m[1]<8)]
+    
+        return legal_moves
+        
+    def find_queenthreats(self, square):
+    
+        return self.find_rookthreats(square) + self.find_diagonalthreats(square)
+        
+    def find_kingthreats(self, s):
+        
+        moves = [(s[0]+1, s[1]+1),
+                 (s[0]+1, s[1]),
+                 (s[0]+1, s[1]-1),
+                 (s[0], s[1]+1),
+                 (s[0], s[1]-1),
+                 (s[0]-1, s[1]+1),
+                 (s[0]-1, s[1]),
+                 (s[0]-1, s[1]-1)]
+        legal_moves = [m for m in moves if (m[0]>=0 and m[0]<8 and m[1]>=0 and m[1]<8)]
+    
+        return legal_moves
         
 def square_index(squarename):
     assert len(squarename) is 2
