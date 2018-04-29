@@ -309,7 +309,7 @@ class game_board():
                 next_position.castle(color, move)
             elif len(move) == 3:
                 #en passant
-                next_position.en_passantable_square = ' '
+                next_position.board[self.en_passantable_square] = ' '
                 next_position.move_piece(move[0], move[1], color)
             elif self.board[move[0]].lower() == 'p' and move[1][1] == self.promotion_row[color]:
                 # pawn promotion - just to knight or queen because we don't want the AI trolling
