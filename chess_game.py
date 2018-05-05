@@ -22,6 +22,7 @@ class game_board():
         #make empty board
         
         self.board = np.empty((8,8),dtype='str')
+        self.cboard = np.zeros((8,8),dtype='str')
         self.board[:, :] = " "
         self.pawn_home = {'W': 1, 'B': 6}
         self.promotion_row = {'W': 7, 'B': 0}
@@ -58,6 +59,10 @@ class game_board():
             self.can_castle = {'W': {'kingside': csvstr[65], 'queenside': csvstr[66]}, 
                                'B': {'kingside': csvstr[67], 'queenside': csvstr[68]}}
             self.white_tomove = csvstr[64]
+    
+    def update_cboard(self):
+        self.cboard[np.isin(self.board, ['Q', 'K', 'R', 'B', 'N', 'P'])] = 'W'
+        self.cboard[np.isin(self.board, ['q', 'k', 'r', 'b', 'n', 'p'])] = 'B'
         
     def __str__(self):
         # sorry that this looks awful, this prints out the gameboard
@@ -451,6 +456,10 @@ class game_board():
                         
         return open_moves
 
+    def new_find_rookmoves(self, s, color):
+        rank = self.board[:, s[1]]
+        
+
     def find_knightmoves(self, s, color):
 
         moves = [(s[0] + 2, s[1] + 1),
@@ -470,8 +479,76 @@ class game_board():
     
         return self.find_rookmoves(square, color) + self.find_diagonals(square, color)
         
-    def find_kingmoves(self, s, color):
+    def new_find_kingmoves(self, s, color):
+        #this looks ugly but it's fast
+    
+        if s[0] == 0:
+            if s[1] == 0:
+                #mx = np.array([s[0]+1, s[0]+1, s[0]])
+                #my = np.array([s[1]+1, s[1], s[1]+1])
+                moves = [(s[0]+1, s[1]+1),
+                         (s[0]+1, s[1]),
+                         (s[0], s[1]+1)] 
+            elif s[1] == 7:
+                #mx = np.array([s[0]+1, s[0]+1, s[0]])
+                #my = np.array([s[1], s[1]-1, s[1]-1])
+                moves = [(s[0]+1, s[1]),
+                         (s[0]+1, s[1]-1)
+                         (s[0], s[1]-1)] 
+            else:
+                moves = [(s[0]+1, s[1]+1),
+                         (s[0]+1, s[1]),
+                         (s[0]+1, s[1]-1),
+                         (s[0], s[1]+1),
+                         (s[0], s[1]-1)] 
+        elif s[0] == 7:
+            if s[1] == 0:
+                moves = [(s[0], s[1]+1),
+                         (s[0]-1, s[1]+1),
+                         (s[0]-1, s[1])] 
+            if s[1] == 7:
+                moves = [(s[0], s[1]-1),
+                         (s[0]-1, s[1]),
+                         (s[0]-1, s[1]-1)]
+            else:
+                moves = [(s[0], s[1]+1),
+                         (s[0], s[1]-1),
+                         (s[0]-1, s[1]+1),
+                         (s[0]-1, s[1]),
+                         (s[0]-1, s[1]-1)] 
+        else:
+            if s[1] == 0:
+                moves = [(s[0]+1, s[1]+1),
+                         (s[0]+1, s[1]),
+                         (s[0], s[1]+1),
+                         (s[0]-1, s[1]+1),
+                         (s[0]-1, s[1])]
+            if s[1] == 7:
+                moves = [(s[0]+1, s[1]),
+                         (s[0]+1, s[1]-1),
+                         (s[0], s[1]-1),
+                         (s[0]-1, s[1]),
+                         (s[0]-1, s[1]-1)]
+            else:
+                #mx = np.array([s[0]+1, s[0]+1, s[0]+1, s[0], s[0], s[0]-1, s[0]-1, s[0]-1])
+                #my = np.array([s[1]+1, s[1], s[1]-1, s[1]+1, s[1]-1, s[1]+1, s[1], s[1]-1])
+                moves = [(s[0]+1, s[1]+1),
+                         (s[0]+1, s[1]),
+                         (s[0]+1, s[1]-1),
+                         (s[0], s[1]+1),
+                         (s[0], s[1]-1),
+                         (s[0]-1, s[1]+1),
+                         (s[0]-1, s[1]),
+                         (s[0]-1, s[1]-1)]
         
+        #mcolors = self.cboard[np.array([mx, my])]
+        #legal_moves = [m for m in moves if not self.board[s] in ['Q', 'K', 'R', 'P', 'K', 'B']]
+        legal_moves = [m for m in moves if not self.cboard[s]==color]
+    
+        return legal_moves
+
+    def find_kingmoves(self, s, color):
+    
         moves = [(s[0]+1, s[1]+1),
                  (s[0]+1, s[1]),
                  (s[0]+1, s[1]-1),
@@ -553,28 +630,51 @@ class game_board():
                                                 self.get_material('W'),
                                                 self.get_material('B')])
     
-    def get_NN_inputs(self):
-        board_onehot = np.zeros((64, 8))
-        fboard = self.board.flatten()
-        #lowered_board = 
-        board_onehot[:, 0] = np.isin(fboard, ['P', 'R', 'N', 'B', 'K', 'Q'])
-        board_onehot[:, 1] = np.isin(fboard, ['p', 'r', 'n', 'b', 'k', 'q'])
-        board_onehot[:, 2] = np.isin(fboard, ['K', 'k'])
-        board_onehot[:, 3] = np.isin(fboard, ['Q', 'q'])
-        board_onehot[:, 4] = np.isin(fboard, ['R', 'r'])
-        board_onehot[:, 5] = np.isin(fboard, ['B', 'b'])
-        board_onehot[:, 6] = np.isin(fboard, ['N', 'n'])
-        board_onehot[:, 7] = np.isin(fboard, ['P', 'p'])
+    def get_NN_inputs(self, color):
+        # board will be given from point of view of color
+        # if black, board is flipped (note: this is not what black would really see, it's mirrored)
+        board_onehot = np.zeros((8, 8, 10))
+        #fboard = self.board.flatten()
         
-        aux = [int(self.white_tomove), 
-                int(self.can_castle['W']['kingside']),
-                int(self.can_castle['W']['queenside']),
-                int(self.can_castle['B']['kingside']),
-                int(self.can_castle['B']['queenside']),
-                self.get_material('W'),
-                self.get_material('B')]
+        board_onehot[:, :, 2] = np.isin(self.board, ['K', 'k'])
+        board_onehot[:, :, 3] = np.isin(self.board, ['Q', 'q'])
+        board_onehot[:, :, 4] = np.isin(self.board, ['R', 'r'])
+        board_onehot[:, :, 5] = np.isin(self.board, ['B', 'b'])
+        board_onehot[:, :, 6] = np.isin(self.board, ['N', 'n'])
+        board_onehot[:, :, 7] = np.isin(self.board, ['P', 'p'])
+        
+        wthreats, bthreats = self.count_threats()
+        
+        if color == 'B':
+            board_onehot[:, :, 0] = np.isin(self.board, ['p', 'r', 'n', 'b', 'k', 'q'])
+            board_onehot[:, :, 1] = np.isin(self.board, ['P', 'R', 'N', 'B', 'K', 'Q'])
+            board_onehot[:, :, 8] = bthreats
+            board_onehot[:, :, 9] = wthreats
+            board_onehot = np.flip(board_onehot, 1)
+
+            aux = [int(self.can_castle['B']['kingside']),
+                    int(self.can_castle['B']['queenside']),
+                    int(self.can_castle['W']['kingside']),
+                    int(self.can_castle['W']['queenside']),
+                    self.get_material('B'),
+                    self.get_material('W')]
+        else:
+            board_onehot[:, :, 0] = np.isin(self.board, ['P', 'R', 'N', 'B', 'K', 'Q'])
+            board_onehot[:, :, 1] = np.isin(self.board, ['p', 'r', 'n', 'b', 'k', 'q'])
+            board_onehot[:, :, 8] = wthreats
+            board_onehot[:, :, 9] = bthreats
+            aux = [int(self.can_castle['W']['kingside']),
+                    int(self.can_castle['W']['queenside']),
+                    int(self.can_castle['B']['kingside']),
+                    int(self.can_castle['B']['queenside']),
+                    self.get_material('W'),
+                    self.get_material('B')]
                 
         return board_onehot, aux
+    
+    def get_next_NN_inputs(self, color):
+        wthreats, bthreats = self.count_threats()
+        next_board_positions = self.find_all_next_board_positions()
     
     def count_threats(self):
         white_threats = np.zeros((8,8))

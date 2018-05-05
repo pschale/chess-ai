@@ -45,3 +45,18 @@ game = 'e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6 f4 e5 Nf3 Nbd7 ' + \
 
 game = game.split()
 a.play_game(game)
+
+#Test 5: en passant
+a = cg.game_board()
+a.move('e4')
+a.move('d5')
+a.move('e5')
+a.move('f5')
+print(a.en_passantable_square)
+next_positions = a.find_all_next_board_positions()
+a = next_positions[-1] # this should be the en passant move
+print(a)
+
+next_positions = a.find_all_next_board_positions()
+[print(ele) for ele in next_positions]
+print(a.en_passantable_square)
