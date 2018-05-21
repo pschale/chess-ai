@@ -18,7 +18,7 @@ from copy import deepcopy
 
 class game_board():
 
-    def __init__(self, gametype='newgame', csvstr = None):
+    def __init__(self, gametype='newgame', csvstr = None, do_threats=True):
         #make empty board
         
         self.board = np.empty((8,8),dtype='str')
@@ -29,7 +29,9 @@ class game_board():
         self.adv = {'W': 1, 'B': -1}
         self.home = {'W': 0, 'B': 7}
         self.en_passantable_square = None
-
+        self.wthreats = np.empty((8,8), dtype='int8')
+        self.bthreats = np.empty((8,8), dtype='int8')
+        
         #add pawns and kings
         if gametype=='newgame':
             self.can_castle = {'W': {'kingside': True, 'queenside': True}, 
@@ -59,11 +61,37 @@ class game_board():
             self.can_castle = {'W': {'kingside': csvstr[65], 'queenside': csvstr[66]}, 
                                'B': {'kingside': csvstr[67], 'queenside': csvstr[68]}}
             self.white_tomove = csvstr[64]
+        #if do_threats:
+        #    self.full_update_threats()
     
     def update_cboard(self):
         self.cboard[np.isin(self.board, ['Q', 'K', 'R', 'B', 'N', 'P'])] = 'W'
         self.cboard[np.isin(self.board, ['q', 'k', 'r', 'b', 'n', 'p'])] = 'B'
         
+    def remove_piece(self, s, color, dothreats=True):
+        p = self.board[s]
+        if dothreats:
+            moves = self.find_threats_from_piece(s, color)
+            if color == 'B':
+                for m in moves:
+                    self.bthreats[m[1]] -= 1
+            else:
+                for m in moves:
+                    self.wthreats[m[1]] -= 1
+        self.board[s] = ' '
+        return p
+        
+    def add_piece(self, s, p, color, dothreats=True):
+        self.board[s] = p
+        if dothreats:
+            moves = self.find_threats_from_piece(s, color)
+            if color == 'B':
+                for m in moves:
+                    self.bthreats[m[1]] += 1
+            else:
+                for m in moves:
+                    self.wthreats[m[1]] += 1
+
     def __str__(self):
         # sorry that this looks awful, this prints out the gameboard
         return "\n".join(['| ' + ' | '.join(list(self.board[:, i])) for i in range(7, -1, -1)])
@@ -103,8 +131,9 @@ class game_board():
             else:
                 startsquare = (endsquare[0], endsquare[1] - self.adv[color])
             assert self.board[startsquare] == myp
-            self.move_piece(startsquare, endsquare, color)
+            self.move_piece(startsquare, endsquare, color, dothreats=False)
             self.board[endsquare] = move[-1]
+            self.full_update_threats()
             if color == 'B':
                 self.board[endsquare] = self.board[endsquare].lower()
         else:
@@ -211,10 +240,10 @@ class game_board():
         if len(self.find_all_legal_moves(color_tomove)) == 0:
             if self.check_check(color_tomove):
                 #checkmate
-                return True, 0 if self.white_tomove else 1
+                return True, 2 if self.white_tomove else 0
             else:
                 #stalemate
-                return True, 0.5
+                return True, 1
         else:
             # conditions for draw should go here
             return False, None
@@ -248,23 +277,23 @@ class game_board():
         color = 'W' if p.isupper() else 'B'
         p = p.lower()
         if p == 'q':
-            return self.find_queenmoves(s, color)
+            return self.find_queen_moves(s, color, 'moves')
         elif p == 'b':
-            return self.find_diagonals(s, color)
+            return self.find_diagonal_moves(s, color, 'moves')
         elif p == 'r':
-            return self.find_rookmoves(s, color)
+            return self.find_rook_moves(s, color, 'moves')
         elif p == 'k':
-            return self.find_kingmoves(s, color)
+            return self.find_king_moves(s, color, 'moves')
         elif p == 'n':
-            return self.find_knightmoves(s, color)
+            return self.find_knight_moves(s, color, 'moves')
         elif p == 'p':
-            return self.find_pawnmoves(s, color)
+            return self.find_pawn_moves(s, color, 'moves')
     
     # this makes a copy of the board, makes the move, then sees if you put your king in check
     # returns boolean
     def is_legal_move(self, startsquare, endsquare, color):
             newboard = self.copy()
-            newboard.move_piece(startsquare, endsquare, color)
+            newboard.move_piece(startsquare, endsquare, color, dothreats=False)
             return not newboard.check_check(color)
     
     # finds the MOVES that the piece on the named square can legally make
@@ -314,19 +343,29 @@ class game_board():
                 next_position.castle(color, move)
             elif len(move) == 3:
                 #en passant
+                #next_position.remove_piece(self.en_passantable_square, 'W' if color=='B' else 'B')
                 next_position.board[self.en_passantable_square] = ' '
                 next_position.move_piece(move[0], move[1], color)
             elif self.board[move[0]].lower() == 'p' and move[1][1] == self.promotion_row[color]:
+                print('promoting pawn')
                 # pawn promotion - just to knight or queen because we don't want the AI trolling
-                next_position.move_piece(move[0], move[1], color)
+                #next_position.move_piece(move[0], move[1], color, dothreats=False)
+                #next_position.remove_piece(move[1], color, dothreats=False)
+                next_position.board[move[0]] = ' ' 
+                #next_position.add_piece(move[1], 'Q' if color == 'W' else 'q', color, dothreats=False)
                 next_position.board[move[1]] = 'Q' if color == 'W' else 'q' 
                 next_position.white_tomove = not next_position.white_tomove
+                #next_position.full_update_threats()
                 possible_boards.append(next_position)
                 
                 next_position = self.copy()
-                next_position.move_piece(move[0], move[1], color)
+                #next_position.move_piece(move[0], move[1], color, dothreats=False)
+                #next_position.remove_piece(move[1], color, dothreats=False)
+                #next_position.add_piece(move[1], 'N' if color == 'W' else 'n', color, dothreats=False)
+                next_position.board[move[0]] = ' ' 
                 next_position.board[move[1]] = 'N' if color == 'W' else 'n' 
                 next_position.white_tomove = not next_position.white_tomove
+                #next_position.full_update_threats()
                 possible_boards.append(next_position)
                 continue
             else:
@@ -378,7 +417,8 @@ class game_board():
     # moves a piece owned by color from startsquare to endsquare,
     # updates castling ability (eg moving queenside rook makes that player unable
     #    to queenside castle later in the game)
-    def move_piece(self, startsquare, endsquare, color):
+    def move_piece(self, startsquare, endsquare, color, dothreats=True):
+        #print(startsquare, endsquare, self.board[startsquare])
         if self.can_castle[color]['queenside'] or self.can_castle[color]['kingside']:
             if self.board[startsquare] in ['K', 'k']:
                 self.can_castle[color]['queenside'] = False
@@ -398,86 +438,20 @@ class game_board():
                 if (self.board[min(endsquare[0]+1, 7), endsquare[1]] == otherp
                      or self.board[max(endsquare[0]-1, 0), endsquare[1]] == otherp):
                      self.en_passantable_square = endsquare
+                     
+        #if not self.board[endsquare] == ' ':
+            #self.remove_piece(endsquare, 'B' if color=='W' else 'W', dothreats=dothreats)
+
+        #p = self.remove_piece(startsquare, color, dothreats=dothreats)
+        #self.add_piece(endsquare, p, color, dothreats=dothreats)
 
         self.board[endsquare] = self.board[startsquare]
         self.board[startsquare] = ' '
-            
-    def find_diagonals(self, s, color):
-
-        # go along each diagonal
-        urs = [(s[0] + i, s[1] + i) for i in range(1, min(7-s[0], 7-s[1]) + 1)]
-        uls = [(s[0] - i, s[1] + i) for i in range(1, min(s[0], 7-s[1]) + 1)]
-        drs = [(s[0] + i, s[1] - i) for i in range(1, min(7-s[0], s[1]) + 1)]
-        dls = [(s[0] - i, s[1] - i) for i in range(1, min(s[0], s[1]) + 1)]
         
-        moves = [urs, uls, drs, dls]
-        stop_index = [-1,-1,-1,-1]
-        for i in range(len(moves)):
-            for j in range(len(moves[i])):
-                if self.board[moves[i][j]] == ' ':
-                    stop_index[i] = j
-                elif not self.find_color(moves[i][j]) == color:
-                    stop_index[i] = j
-                    break
-                else:
-                    break
-
-        open_moves = [moves[i][:stop_index[i]+1] for i in range(4)]
-        open_moves = [item for sublist in open_moves for item in sublist]
-        open_moves = [ele for ele in open_moves if ele]
-                
-        return open_moves
-
-    def find_rookmoves(self, s, color):
-
-        # go along each path all the way to the edge of the board
-        u = [(s[0], s[1] + i) for i in range(1, 7-s[1] + 1)]
-        d = [(s[0], s[1] - i) for i in range(1, s[1] + 1)]
-        l = [(s[0] - i, s[1]) for i in range(1, s[0] + 1)]
-        r = [(s[0] + i, s[1]) for i in range(1, 7-s[0] + 1)]
-
-        moves = [u, d, l, r]
-        stop_index = [-1,-1,-1,-1]
-        # loop over each diagonal, go until a piece is blocking
-        # if the piece is the other color, it can be captured
-        for i in range(len(moves)):
-            for j in range(len(moves[i])):
-                if self.board[moves[i][j]] == ' ':
-                    stop_index[i] = j
-                elif not self.find_color(moves[i][j]) == color:
-                    stop_index[i] = j
-                    break
-                else:
-                    break
-
-        open_moves = [moves[i][:stop_index[i]+1] for i in range(4)]
-        open_moves = [item for sublist in open_moves for item in sublist]
-        open_moves = [ele for ele in open_moves if ele]
-                        
-        return open_moves
 
     def new_find_rookmoves(self, s, color):
         rank = self.board[:, s[1]]
-        
 
-    def find_knightmoves(self, s, color):
-
-        moves = [(s[0] + 2, s[1] + 1),
-                 (s[0] - 2, s[1] + 1),
-                 (s[0] + 2, s[1] - 1),
-                 (s[0] - 2, s[1] - 1),
-                 (s[0] + 1, s[1] + 2),
-                 (s[0] - 1, s[1] + 2),
-                 (s[0] + 1, s[1] - 2),
-                 (s[0] - 1, s[1] - 2)]
-
-        legal_moves = [m for m in moves if (m[0]>=0 and m[0]<8 and m[1]>=0 and m[1]<8) and (not self.find_color(m)==color)]
-    
-        return legal_moves
-        
-    def find_queenmoves(self, square, color):
-    
-        return self.find_rookmoves(square, color) + self.find_diagonals(square, color)
         
     def new_find_kingmoves(self, s, color):
         #this looks ugly but it's fast
@@ -547,38 +521,7 @@ class game_board():
     
         return legal_moves
 
-    def find_kingmoves(self, s, color):
-    
-        moves = [(s[0]+1, s[1]+1),
-                 (s[0]+1, s[1]),
-                 (s[0]+1, s[1]-1),
-                 (s[0], s[1]+1),
-                 (s[0], s[1]-1),
-                 (s[0]-1, s[1]+1),
-                 (s[0]-1, s[1]),
-                 (s[0]-1, s[1]-1)]
-        legal_moves = [m for m in moves if (m[0]>=0 and m[0]<8 and m[1]>=0 and m[1]<8) and (not self.find_color(m)==color)]
-    
-        return legal_moves
-        
-    def find_pawnmoves(self, s, color):
 
-        adv = 1 if color == 'W' else -1
-        ocolor = 'W' if color == 'B' else 'B'
-        legal_moves = []
-        startrank = 1 if color == 'W' else 6
-        
-        if self.board[s[0], s[1] + adv] == ' ':
-            legal_moves.append((s[0], s[1] + adv))
-            if s[1] == startrank and self.board[s[0], s[1] + 2*adv] == ' ':
-                legal_moves.append((s[0], s[1]+2*adv))
-        for i in [-1, 1]: #capturing diagonally - en passant not considered yet
-            if (s[0] + i < 0) or (s[0] + i > 7):
-                continue
-            if self.find_color((s[0] + i, s[1] + adv)) == ocolor:
-                legal_moves.append((s[0]+i, s[1]+adv))
-        return legal_moves
-        
     def find_en_passantmoves(self, color):
         # pawn to be captured is on s = self.en_passantable_square
         # pawns doing the capturing are on (s[0]+1, s[1]), (s[0]-1, s[1])
@@ -598,10 +541,12 @@ class game_board():
         return open_moves
         
     def copy(self):
-        gamecopy = game_board()
+        gamecopy = game_board(do_threats=False)
         gamecopy.board = np.copy(self.board)
         gamecopy.can_castle = deepcopy(self.can_castle)
         gamecopy.white_tomove = self.white_tomove
+        gamecopy.wthreats = np.copy(self.wthreats)
+        gamecopy.bthreats = np.copy(self.bthreats)
         return gamecopy
                
     def get_material(self, color):
@@ -630,10 +575,15 @@ class game_board():
                                                 self.get_material('W'),
                                                 self.get_material('B')])
     
-    def get_NN_inputs(self, color):
+    def get_NN_inputs(self, color, dothreats=True):
         # board will be given from point of view of color
         # if black, board is flipped (note: this is not what black would really see, it's mirrored)
-        board_onehot = np.zeros((8, 8, 10))
+        if dothreats:
+            board_onehot = np.zeros((8, 8, 10))
+            wthreats, bthreats = self.count_threats()
+        else:
+            board_onehot = np.zeros((8, 8, 8))
+
         #fboard = self.board.flatten()
         
         board_onehot[:, :, 2] = np.isin(self.board, ['K', 'k'])
@@ -643,13 +593,12 @@ class game_board():
         board_onehot[:, :, 6] = np.isin(self.board, ['N', 'n'])
         board_onehot[:, :, 7] = np.isin(self.board, ['P', 'p'])
         
-        wthreats, bthreats = self.count_threats()
-        
         if color == 'B':
             board_onehot[:, :, 0] = np.isin(self.board, ['p', 'r', 'n', 'b', 'k', 'q'])
             board_onehot[:, :, 1] = np.isin(self.board, ['P', 'R', 'N', 'B', 'K', 'Q'])
-            board_onehot[:, :, 8] = bthreats
-            board_onehot[:, :, 9] = wthreats
+            if dothreats:
+                board_onehot[:, :, 8] = bthreats
+                board_onehot[:, :, 9] = wthreats
             board_onehot = np.flip(board_onehot, 1)
 
             aux = [int(self.can_castle['B']['kingside']),
@@ -661,8 +610,9 @@ class game_board():
         else:
             board_onehot[:, :, 0] = np.isin(self.board, ['P', 'R', 'N', 'B', 'K', 'Q'])
             board_onehot[:, :, 1] = np.isin(self.board, ['p', 'r', 'n', 'b', 'k', 'q'])
-            board_onehot[:, :, 8] = wthreats
-            board_onehot[:, :, 9] = bthreats
+            if dothreats:
+                board_onehot[:, :, 8] = wthreats
+                board_onehot[:, :, 9] = bthreats
             aux = [int(self.can_castle['W']['kingside']),
                     int(self.can_castle['W']['queenside']),
                     int(self.can_castle['B']['kingside']),
@@ -675,42 +625,45 @@ class game_board():
     def get_next_NN_inputs(self, color):
         wthreats, bthreats = self.count_threats()
         next_board_positions = self.find_all_next_board_positions()
+        
+    def full_update_threats(self):
+        self.wthreats, self.bthreats = self.count_threats()
     
     def count_threats(self):
         white_threats = np.zeros((8,8))
         black_threats = np.zeros((8,8))
         
         #deal with pawns first
-        whitepawns = np.where(self.board == 'P')
-        whitepawns = [(whitepawns[0][i], whitepawns[1][i]) for i in range(len(whitepawns[0]))]
-        for p in whitepawns:
-            if p[0] > 0:
-                white_threats[p[0]-1,p[1]+1] += 1
-            if p[0] < 7:
-                white_threats[p[0]+1,p[1]+1] += 1
+        #whitepawns = np.where(self.board == 'P')
+        #whitepawns = [(whitepawns[0][i], whitepawns[1][i]) for i in range(len(whitepawns[0]))]
+        #for p in whitepawns:
+        #    if p[0] > 0:
+        #        white_threats[p[0]-1,p[1]+1] += 1
+        #    if p[0] < 7:
+        #        white_threats[p[0]+1,p[1]+1] += 1
         #now all the other pieces
-        other_white_pieces = np.where(np.isin(self.board, ['Q', 'K', 'N', 'R', 'B']))
-        other_white_pieces = [(other_white_pieces[0][i], other_white_pieces[1][i]) for i in range(len(other_white_pieces[0]))]
+        white_pieces = np.where(np.isin(self.board, ['Q', 'K', 'N', 'R', 'B', 'P']))
+        white_pieces = [(white_pieces[0][i], white_pieces[1][i]) for i in range(len(white_pieces[0]))]
         
-        for p in other_white_pieces:
+        for p in white_pieces:
             moves = self.find_threats_from_piece(p, 'W')
             for m in moves:
                 white_threats[m[1]] += 1
             
         #same for black
         #deal with pawns first
-        blackpawns = np.where(self.board == 'p')
-        blackpawns = [(blackpawns[0][i], blackpawns[1][i]) for i in range(len(blackpawns[0]))]
-        for p in blackpawns:
-            if p[0] > 0:
-                black_threats[p[0]-1,p[1]-1] += 1
-            if p[0] < 7:
-                black_threats[p[0]+1,p[1]-1] += 1
+        #blackpawns = np.where(self.board == 'p')
+        #blackpawns = [(blackpawns[0][i], blackpawns[1][i]) for i in range(len(blackpawns[0]))]
+        #for p in blackpawns:
+        #    if p[0] > 0:
+        #        black_threats[p[0]-1,p[1]-1] += 1
+        #    if p[0] < 7:
+        #        black_threats[p[0]+1,p[1]-1] += 1
         #now all the other pieces
-        other_black_pieces = np.where(np.isin(self.board, ['q', 'k', 'n', 'r', 'b']))
-        other_black_pieces = [(other_black_pieces[0][i], other_black_pieces[1][i]) for i in range(len(other_black_pieces[0]))]
+        black_pieces = np.where(np.isin(self.board, ['q', 'k', 'n', 'r', 'b', 'p']))
+        black_pieces = [(black_pieces[0][i], black_pieces[1][i]) for i in range(len(black_pieces[0]))]
         
-        for p in other_black_pieces:
+        for p in black_pieces:
             moves = self.find_threats_from_piece(p, 'B')
             for m in moves:
                 black_threats[m[1]] += 1
@@ -718,25 +671,63 @@ class game_board():
         return white_threats, black_threats
         
     def find_threats_from_piece(self, s, color):
-        if self.board[s].lower() == 'b':
-            all_moves = self.find_diagonalthreats(s)
+        if self.board[s].lower() == 'p':
+            all_moves = self.find_pawn_moves(s, color, 'threats')
+        elif self.board[s].lower() == 'b':
+            all_moves = self.find_diagonal_moves(s, color, 'threats')
         elif self.board[s].lower() == 'n':
-            all_moves = self.find_knightthreats(s)
+            all_moves = self.find_knight_moves(s, color, 'threats')
         elif self.board[s].lower() == 'r':
-            all_moves = self.find_rookthreats(s)
+            all_moves = self.find_rook_moves(s, color, 'threats')
         elif self.board[s].lower() == 'k':
-            all_moves = self.find_kingthreats(s)
+            all_moves = self.find_king_moves(s, color, 'threats')
         elif self.board[s].lower() == 'q':
-            all_moves = self.find_queenthreats(s)
+            all_moves = self.find_queen_moves(s, color, 'threats')
         else:
             raise
+        #print(s)
+        #print(all_moves)
         all_moves = [ele for ele in all_moves if not ele == self.get_kingloc(color)]
-            
-        legal_moves = [[s, move] for move in all_moves if self.is_legal_move(s, move, color)]
         
+        if self.is_pinned(s, color):
+            legal_moves = [[s, move] for move in all_moves if self.is_legal_move(s, move, color)]
+        else:
+            legal_moves = all_moves
         return legal_moves
+        
+    def is_pinned(self, s, color):
+        bc = self.copy()
+        bc.board[s] == ' '
+        return bc.check_check(color)
+        
+        
 
-    def find_diagonalthreats(self, s):
+    def find_pawn_moves(self, s, color, t):
+        if t == 'moves':
+            adv = 1 if color == 'W' else -1
+            ocolor = 'W' if color == 'B' else 'B'
+            legal_moves = []
+            startrank = 1 if color == 'W' else 6
+        
+            if self.board[s[0], s[1] + adv] == ' ':
+                legal_moves.append((s[0], s[1] + adv))
+                if s[1] == startrank and self.board[s[0], s[1] + 2*adv] == ' ':
+                    legal_moves.append((s[0], s[1]+2*adv))
+            for i in [-1, 1]: #capturing diagonally - en passant not considered yet
+                if (s[0] + i < 0) or (s[0] + i > 7):
+                    continue
+                if self.find_color((s[0] + i, s[1] + adv)) == ocolor:
+                    legal_moves.append((s[0]+i, s[1]+adv))
+            return legal_moves
+        elif t == 'threats':
+            threatened_squares = []
+            if s[0] > 0:
+                threatened_squares += [(s[0]-1,s[1]+self.adv[color])]
+            if s[0] < 7:
+                threatened_squares += [(s[0]+1,s[1]+self.adv[color])]
+            return threatened_squares
+
+    def find_diagonal_moves(self, s, color, t):
 
         # go along each diagonal
         urs = [(s[0] + i, s[1] + i) for i in range(1, min(7-s[0], 7-s[1]) + 1)]
@@ -746,21 +737,87 @@ class game_board():
         
         moves = [urs, uls, drs, dls]
         stop_index = [-1,-1,-1,-1]
-        for i in range(len(moves)):
-            for j in range(len(moves[i])):
-                if self.board[moves[i][j]] == ' ':
-                    stop_index[i] = j
-                else:
-                    stop_index[i] = j
-                    break
+        if t == 'moves':
+            for i in range(len(moves)):
+                for j in range(len(moves[i])):
+                    if self.board[moves[i][j]] == ' ':
+                        stop_index[i] = j
+                    elif not self.find_color(moves[i][j]) == color:
+                        stop_index[i] = j
+                        break
+                    else:
+                        break
+        elif t == 'threats':
+            for i in range(len(moves)):
+                for j in range(len(moves[i])):
+                    if self.board[moves[i][j]] == ' ':
+                        stop_index[i] = j
+                    else:
+                        stop_index[i] = j
+                        break
 
         open_moves = [moves[i][:stop_index[i]+1] for i in range(4)]
         open_moves = [item for sublist in open_moves for item in sublist]
         open_moves = [ele for ele in open_moves if ele]
                 
         return open_moves
+
+    def new_find_diagonal_moves(self, s, color, t):
+    
         
-    def find_rookthreats(self, s):
+        for ii in [[1,1], [-1,1], [1,-1], [-1,-1]]:
+            n = min(7-s[0], 7-s[1])
+            sqs = [(s[0]+i*ii[0], s[1]+ii[1]) for i in range(1,1+n)]
+
+        # go along each diagonal
+        #nurs = min(7-s[0], 7-s[1])
+        #nuls = min(s[0], 7-s[1])
+        #ndrs = min(7-s[0], s[1])
+        #ndls = min(s[0], s[1])
+        
+        #burs = self.board[[s[0] + i for i in range(1, nurs+1)], [s[1] + i for i in range(1, nurs+1)]]
+        urs = [(s[0] + i, s[1] + i) for i in range(1, min(7-s[0], 7-s[1]) + 1)]
+        uls = [(s[0] - i, s[1] + i) for i in range(1, min(s[0], 7-s[1]) + 1)]
+        drs = [(s[0] + i, s[1] - i) for i in range(1, min(7-s[0], s[1]) + 1)]
+        dls = [(s[0] - i, s[1] - i) for i in range(1, min(s[0], s[1]) + 1)]
+        
+        urs = np.transpose(np.c_[urs])
+        uls = np.transpose(np.c_[uls])
+        drs = np.transpose(np.c_[drs])
+        dls = np.transpose(np.c_[dls])
+       
+        burs = self.board[urs[0], urs[1]]
+        buls = self.board[uls[0], uls[1]]
+        bdrs = self.board[drs[0], drs[1]]
+        bdls = self.board[dls[0], dls[1]]
+        
+        moves = [urs, uls, drs, dls]
+        stop_index = [-1,-1,-1,-1]
+        if t == 'moves':
+            for i in range(len(moves)):
+                for j in range(len(moves[i])):
+                    if self.board[moves[i][j]] == ' ':
+                        stop_index[i] = j
+                    elif not self.find_color(moves[i][j]) == color:
+                        stop_index[i] = j
+                        break
+                    else:
+                        break
+        elif t == 'threats':
+            for i in range(len(moves)):
+                for j in range(len(moves[i])):
+                    if self.board[moves[i][j]] == ' ':
+                        stop_index[i] = j
+                    else:
+                        stop_index[i] = j
+                        break
+
+        open_moves = [moves[i][:stop_index[i]+1] for i in range(4)]
+        open_moves = [item for sublist in open_moves for item in sublist]
+        open_moves = [ele for ele in open_moves if ele]
+                
+        return open_moves
+    def find_rook_moves(self, s, color, t):
 
         # go along each path all the way to the edge of the board
         u = [(s[0], s[1] + i) for i in range(1, 7-s[1] + 1)]
@@ -772,13 +829,26 @@ class game_board():
         stop_index = [-1,-1,-1,-1]
         # loop over each diagonal, go until a piece is blocking
         # if the piece is the other color, it can be captured
-        for i in range(len(moves)):
-            for j in range(len(moves[i])):
-                if self.board[moves[i][j]] == ' ':
-                    stop_index[i] = j
-                else:
-                    stop_index[i] = j
-                    break
+        if t == 'moves':
+            for i in range(len(moves)):
+                for j in range(len(moves[i])):
+                    if self.board[moves[i][j]] == ' ':
+                        stop_index[i] = j
+                    elif not self.find_color(moves[i][j]) == color:
+                        stop_index[i] = j
+                        break
+                    else:
+                        break
+        elif t ==  'threats':
+            for i in range(len(moves)):
+                for j in range(len(moves[i])):
+                    if self.board[moves[i][j]] == ' ':
+                        stop_index[i] = j
+                    else:
+                        stop_index[i] = j
+                        break
+        else:
+            raise
 
         open_moves = [moves[i][:stop_index[i]+1] for i in range(4)]
         open_moves = [item for sublist in open_moves for item in sublist]
@@ -786,7 +856,8 @@ class game_board():
                         
         return open_moves
 
-    def find_knightthreats(self, s):
+
+    def find_knight_moves(self, s, color, t):
 
         moves = [(s[0] + 2, s[1] + 1),
                  (s[0] - 2, s[1] + 1),
@@ -796,16 +867,17 @@ class game_board():
                  (s[0] - 1, s[1] + 2),
                  (s[0] + 1, s[1] - 2),
                  (s[0] - 1, s[1] - 2)]
-
-        legal_moves = [m for m in moves if (m[0]>=0 and m[0]<8 and m[1]>=0 and m[1]<8)]
-    
+        if t=='threats':
+            legal_moves = [m for m in moves if (m[0]>=0 and m[0]<8 and m[1]>=0 and m[1]<8)]
+        elif t=='moves':
+            legal_moves = [m for m in moves if (m[0]>=0 and m[0]<8 and m[1]>=0 and m[1]<8) and (not self.find_color(m)==color)]
         return legal_moves
         
-    def find_queenthreats(self, square):
+    def find_queen_moves(self, s, color, t):
     
-        return self.find_rookthreats(square) + self.find_diagonalthreats(square)
+        return self.find_rook_moves(s, color, t) + self.find_diagonal_moves(s, color, t)
         
-    def find_kingthreats(self, s):
+    def find_king_moves(self, s, color, t):
         
         moves = [(s[0]+1, s[1]+1),
                  (s[0]+1, s[1]),
@@ -815,10 +887,60 @@ class game_board():
                  (s[0]-1, s[1]+1),
                  (s[0]-1, s[1]),
                  (s[0]-1, s[1]-1)]
-        legal_moves = [m for m in moves if (m[0]>=0 and m[0]<8 and m[1]>=0 and m[1]<8)]
-    
+        if t == 'moves':
+            legal_moves = [m for m in moves if (m[0]>=0 and m[0]<8 and m[1]>=0 and m[1]<8) and (not self.find_color(m)==color)]
+        elif t == 'threats':
+            legal_moves = [m for m in moves if (m[0]>=0 and m[0]<8 and m[1]>=0 and m[1]<8)]
+        else:
+            raise
         return legal_moves
         
+class saved_game():
+
+    def __init__(self):
+        self.num_moves = 0
+        self.all_positions = [game_board()]
+        self.log = np.empty((0,3))
+        self.game_completed = False
+        
+    def _find_next_positions(self):
+        self.next_positions = self.all_positions[-1].find_all_next_board_positions()
+        
+    def current_position(self):
+        return self.all_positions[-1]
+        
+    def make_move(self, i, dothreats=True):
+        self.all_positions.append(self.next_positions[i])
+        self.num_moves += 1
+        self.log = np.append(self.log, np.array(self.current_position().get_NN_inputs('W', dothreats=dothreats) + (None,))[np.newaxis, :], axis=0)
+    
+    def finish_game(self):
+        score = self.find_winner()
+        score_ar = np.array([0,0,0])
+        score_ar[score] = 1
+        #self.log = np.append(self.log, [score_ar], axis=1)
+        self.log[:,2] = [score_ar for i in range(self.num_moves)]
+        
+    def get_next_NN_inputs(self, dothreats=True):
+        self._find_next_positions()
+        color = 'W' if self.current_position().white_tomove else 'B'
+        self.next_NN_inputs = [ele.get_NN_inputs(color, dothreats=dothreats) for ele in self.next_positions]
+        return self.next_NN_inputs
+        
+    def find_winner(self):
+        # 0 for white win, 1 for draw, 2 for black win
+        a, b = self.all_positions[-1].game_over()
+        if a:
+            return b
+        w_material = self.all_positions[-1].get_material('W')
+        b_material = self.all_positions[-1].get_material('B')
+        if w_material > b_material:
+            return 0
+        elif b_material > w_material:
+            return 2
+        else:
+            return 0
+            
 def square_index(squarename):
     assert len(squarename) is 2
     ranknum = int(squarename[1])
